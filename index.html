@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Neumorphic Drum Machine with Knobs and Sequencer</title>
+    <title>Neumorphic Drum Machine</title>
     <style>
         /* Neumorphic Styles */
         body {
@@ -79,6 +79,7 @@
             box-shadow: 5px 5px 10px #bebebe,
                         -5px -5px 10px #ffffff;
             transition: background-color 0.1s ease, box-shadow 0.1s ease;
+            cursor: pointer;
         }
         .global-step.active {
             background: #e0e0e3; /* Slightly darker off-white */
@@ -97,6 +98,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            width: 100%;
         }
         .pad {
             width: 100%;
@@ -122,34 +124,49 @@
             box-shadow: inset 10px 10px 20px #bebebe,
                         inset -10px -10px 20px #ffffff;
         }
+        .load-button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #f0f0f3;
+            box-shadow:  3px 3px 6px #bebebe,
+                         -3px -3px 6px #ffffff;
+            color: #333;
+            cursor: pointer;
+        }
+        .load-button:active {
+            box-shadow: inset 3px 3px 6px #bebebe,
+                        inset -3px -3px 6px #ffffff;
+        }
         .knob-container {
             margin-top: 10px;
-            width: 80%;
+            width: 80px;
+            height: 80px;
+            position: relative;
         }
         .knob {
             width: 100%;
-        }
-        .sequencer {
-            display: grid;
-            grid-template-columns: repeat(16, 1fr);
-            grid-gap: 5px;
-            margin-top: 20px;
-            width: 100%;
-        }
-        .sequencer-step {
-            width: 100%;
-            padding-top: 100%; /* Makes the step a square */
-            position: relative;
-            cursor: pointer;
-            border-radius: 5px;
+            height: 100%;
+            border-radius: 50%;
             background: #f0f0f3;
-            box-shadow: 5px 5px 10px #bebebe,
-                        -5px -5px 10px #ffffff;
-        }
-        .sequencer-step.active {
-            background: #e0e0e3; /* Slightly darker off-white */
             box-shadow: inset 5px 5px 10px #bebebe,
                         inset -5px -5px 10px #ffffff;
+            position: relative;
+            cursor: pointer;
+        }
+        .knob-marker {
+            width: 4px;
+            height: 20px;
+            background: #333;
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform-origin: bottom center;
+            transform: rotate(0deg) translateX(-50%);
+            transition: transform 0.1s ease;
         }
         /* Styles for the snake animation */
         .snake-segment {
@@ -217,7 +234,7 @@
 
         const samples = [];
         const sampleDurations = []; // Store sample playback durations
-        const sequences = new Array(16).fill(null).map(() => new Array(16).fill(false));
+        const sequences = new Array(16).fill(false); // Global sequencer with 16 steps
         let currentStep = 0;
         let intervalId = null;
 
@@ -310,10 +327,18 @@
             const stepDiv = document.createElement('div');
             stepDiv.classList.add('global-step');
             stepDiv.dataset.step = step;
+
+            // Make steps clickable
+            stepDiv.addEventListener('click', () => {
+                const stepIndex = parseInt(stepDiv.dataset.step, 10);
+                sequences[stepIndex] = !sequences[stepIndex];
+                stepDiv.classList.toggle('active');
+            });
+
             globalSequencer.appendChild(stepDiv);
         }
 
-        // Initialize pads and sequencers
+        // Initialize pads
         for(let i = 0; i < 16; i++) {
             const padContainer = document.createElement('div');
             padContainer.classList.add('pad-container');
@@ -361,50 +386,61 @@
 
             padContainer.appendChild(pad);
 
+            // Load Sample button
+            const loadButton = document.createElement('button');
+            loadButton.textContent = 'Load Sample';
+            loadButton.classList.add('load-button');
+            loadButton.addEventListener('click', () => {
+                input.click();
+            });
+            padContainer.appendChild(loadButton);
+
             // Knob fader for controlling playback duration
             const knobContainer = document.createElement('div');
             knobContainer.classList.add('knob-container');
-            const knob = document.createElement('input');
-            knob.type = 'range';
-            knob.min = 0.1;
-            knob.max = 5;
-            knob.step = 0.1;
-            knob.value = 5; // Default to full length
+
+            const knob = document.createElement('div');
             knob.classList.add('knob');
             knob.dataset.pad = i;
 
-            // Store the duration for each sample
-            sampleDurations[i] = parseFloat(knob.value);
+            const knobMarker = document.createElement('div');
+            knobMarker.classList.add('knob-marker');
+            knob.appendChild(knobMarker);
 
-            knob.addEventListener('input', () => {
-                const padIndex = parseInt(knob.dataset.pad, 10);
-                sampleDurations[padIndex] = parseFloat(knob.value);
+            // Store the duration for each sample
+            sampleDurations[i] = 5; // Default to full length
+
+            let isDragging = false;
+            let startY = 0;
+            let startAngle = 0;
+
+            knob.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startY = e.clientY;
+                startAngle = parseFloat(knob.dataset.angle) || 0;
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const dy = startY - e.clientY;
+                    let angle = startAngle + dy;
+                    angle = Math.max(-135, Math.min(135, angle));
+                    knob.dataset.angle = angle;
+                    knobMarker.style.transform = `rotate(${angle}deg) translateX(-50%)`;
+                    const padIndex = parseInt(knob.dataset.pad, 10);
+                    const value = ((angle + 135) / 270) * 5 + 0.1; // Range from 0.1 to 5 seconds
+                    sampleDurations[padIndex] = value.toFixed(2);
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
             });
 
             knobContainer.appendChild(knob);
             padContainer.appendChild(knobContainer);
 
-            // Create sequencer steps
-            const sequencer = document.createElement('div');
-            sequencer.classList.add('sequencer');
-
-            for (let step = 0; step < 16; step++) {
-                const stepDiv = document.createElement('div');
-                stepDiv.classList.add('sequencer-step');
-                stepDiv.dataset.pad = i;
-                stepDiv.dataset.step = step;
-
-                stepDiv.addEventListener('click', () => {
-                    const padIndex = parseInt(stepDiv.dataset.pad, 10);
-                    const stepIndex = parseInt(stepDiv.dataset.step, 10);
-                    sequences[padIndex][stepIndex] = !sequences[padIndex][stepIndex];
-                    stepDiv.classList.toggle('active');
-                });
-
-                sequencer.appendChild(stepDiv);
-            }
-
-            padContainer.appendChild(sequencer);
             grid.appendChild(padContainer);
 
             // Load default sound
@@ -454,26 +490,30 @@
                     metronomeSample.currentTime = 0;
                     metronomeSample.play();
                 }
+
                 // Play samples and light up pads
-                for (let i = 0; i < 16; i++) {
-                    if (sequences[i][currentStep] && samples[i]) {
-                        samples[i].currentTime = 0;
-                        samples[i].play();
-
-                        // Stop the sample after specified duration
-                        const duration = sampleDurations[i];
-                        setTimeout(() => {
-                            samples[i].pause();
+                if (sequences[currentStep]) {
+                    for (let i = 0; i < 16; i++) {
+                        if (samples[i]) {
                             samples[i].currentTime = 0;
-                        }, duration * 1000);
+                            samples[i].play();
 
-                        // Light up the pad
-                        const pad = document.querySelector(`.pad[data-pad="${i}"]`);
-                        const padColor = padColors[i % padColors.length];
-                        pad.style.background = padColor;
-                        pad.style.boxShadow = 'inset 10px 10px 20px #bebebe, inset -10px -10px 20px #ffffff';
+                            // Stop the sample after specified duration
+                            const duration = sampleDurations[i];
+                            setTimeout(() => {
+                                samples[i].pause();
+                                samples[i].currentTime = 0;
+                            }, duration * 1000);
+
+                            // Light up the pad
+                            const pad = document.querySelector(`.pad[data-pad="${i}"]`);
+                            const padColor = padColors[i % padColors.length];
+                            pad.style.background = padColor;
+                            pad.style.boxShadow = 'inset 10px 10px 20px #bebebe, inset -10px -10px 20px #ffffff';
+                        }
                     }
                 }
+
                 // Move snake
                 moveSnake();
                 currentStep = (currentStep + 1) % 16;
